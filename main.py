@@ -3,6 +3,8 @@ import tools.aquah_run
 reload(tools.aquah_run)
 from tools.aquah_run import aquah_run
 import os
+import getpass
+
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     print("OpenAI API Key not found in environment variables.")
