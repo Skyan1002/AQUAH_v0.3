@@ -20,19 +20,15 @@ class DirtyFlags:
 
 import json
 
+from tools.prompt_loader import load_prompts
+
 def feedback_agent(feedback: str):
+    prompts = load_prompts()
+    feedback_prompts = prompts["feedback_agent"]
     feedback_parser_agent = Agent(
-        role="Feedback Interpreter",
-        goal="Parse feedback about gauge_id and CREST args and output JSON instructions.",
-        backstory=(
-            "You are an assistant that understands hydrologic-model configuration feedback. "
-            "Given a feedback string, decide whether the user asked to modify gauge_id and/or any CREST arguments. "
-            "Return a JSON dict with keys:\n"
-            "  gauge_id_dirty (bool), gauge_id_new (str or null),\n"
-            "  crest_args_dirty (bool), crest_args_new (dict[str, float]),\n"
-            "  explanation (str)\n"
-            "If a field is not mentioned, keep the *_dirty flag false and *_new null/{}."
-        ),
+        role=feedback_prompts["role"],
+        goal=feedback_prompts["goal"],
+        backstory=feedback_prompts["backstory"],
         verbose=False  # Set to True to view LLM reasoning logs
     )
 
@@ -44,27 +40,11 @@ def feedback_agent(feedback: str):
     
     # Let Agent parse feedback and output JSON ------------------
     feedback_task = Task(
-        description=(
-            "User feedback:\n"
-            "----------------\n"
-            f"{feedback}\n"
-            "----------------\n"
-            "Follow these steps strictly:\n"
-            "1. Inspect the text. If it mentions changing gauge_id, set gauge_id_dirty true and "
-            "extract the integer value they want (gauge_id_new). Otherwise, false/null.\n"
-            "2. For each CREST argument (see list below), if the user requests a change, "
-            "add it to crest_args_new dict (key=param name in lower case, value=float or bool). "
-            "Set crest_args_dirty to true if any changes.\n"
-            f"CREST params list: {sorted(CREST_PARAMS)}\n"
-            "3. Return ONLY the assignment code lines needed to update existing variables dirty, args_new, and crest_args_new. "
-            "These variables are already defined, so only provide modification statements like (gauge_id should be a string remember the ''):\n"
-            "dirty.gauge_id = True\n"
-            "args_new.gauge_id = '12345'\n"
-            "dirty.crest_args = True\n"
-            "crest_args_new.wm = 0.5\n"
-            "If no changes are needed, return an empty string."
+        description=feedback_prompts["task_description"].format(
+            feedback=feedback,
+            crest_params=sorted(CREST_PARAMS),
         ),
-        expected_output="One-line JSON string",
+        expected_output=feedback_prompts["expected_output"],
         agent=feedback_parser_agent
     )
     crew = Crew(agents=[feedback_parser_agent], tasks=[feedback_task], verbose=False)
@@ -176,7 +156,7 @@ def feedback_agent(feedback: str):
 
 
 # Main
-def aquah_run(llm_model_name: str):
+def aquah_run(cli_args):
     # Warning control
     warnings.filterwarnings('ignore')
     import logging
@@ -201,24 +181,9 @@ def aquah_run(llm_model_name: str):
     # Assign loaded configurations to specific variables
     agents_config = configs['agents']
     tasks_config = configs['tasks']
-    # input_text = input("Please enter the simulation information (e.g., 'I want to simulate basin Fort Cobb, from 2022 June to July'): ")
-    # input_text = 'San Antonio Rv at San Antonio, TX,  2023'
-    # input_text = input_text + ', from 2020 to 2022' 
-    input_text = '35.6089°, -82.5781°,  from 20240801 to 20241031, this is Hurricane Helene, try reasonable parameters for this severe event, use gauge 03461500'
-    # input_text = '40°, -90°,  from 20240801 to 20241031'
-    # input_text = '26.9848°, -81.9356° ,  from 20220901 to 20221101, this is Hurricane , try reasonable parameters for this severe event, use gauge 02298202  '
-    # input_text = '30.0657° N, -99.3434° W ,  from 20250620 to 20250706, use gauge 08167500'
-    # input_text = '30.0869° N, -99.3831° W ,  from 20250620 to 20250706, use gauge 08165300'
-    # input_text = '30.0869° N, -99.3831° W ,  from 20250620 to 20250706, use gauge 08167000'
-    input_text = '31.80°N, -89.48°W,  from 20200101 to 20201231, use gauge 02473000'
-    input_text = '46.62°N, -123.80°W,  from 20200101 to 20201231, use gauge 12010000, wm=180, b=2.5, im=0.03, ke=0.7, fc=80, iwu=25,th=50,under=1.5,leaki=0.1,isu=0,alpha=1.2,beta=0.6,alpha0=0.8'
-    input_text = '30.1002, -99.2831,  from 20250601 to 20250720, use gauge 08166000'
-    # input_text = '29.993, -99.087,  from 20240101 to 20250709, use gauge 08166000'
-    # input_text = 'Blanco River,29.94°N, –98.02°W,  from 20150506 to 20150601'
-    input_text = 'there is a flood in Kerr County,TX, early July 2025, can you find a reasonable basin and time period for this flood event? use gauge 08166000 and from 20250701 to 20250710'
-    input_text = 'Peachtree Creek, GA, 20240801 to 20240901, use gauge 02336300'
-    input_text = 'Sinnemahoning Creek at Sinnemahoning, PA, 20120401 to 20121031, use gauge 01543500'
-    input_text = input("Please enter the simulation information (e.g., 'I want to simulate basin Fort Cobb, from 2022 June to July'): ")
+    input_text = cli_args.input_text
+    if not input_text:
+        input_text = input("Please enter the simulation information (e.g., 'I want to simulate basin Fort Cobb, from 2022 June to July'): ")
     print('User input: ', input_text)
     
     print('\n\033[1;31m\033[1m------------------------------------------------')
@@ -244,7 +209,8 @@ def aquah_run(llm_model_name: str):
     import re
 
     args = SimpleNamespace()
-    args.llm_model_name = llm_model_name
+    args.llm_model_name = cli_args.llm_model_name
+    args.vision_model_name = cli_args.vision_model_name
     args.basin_name = result["basin_name"]
 
     # Helper to parse a string like "[datetime(2022, 6, 1), datetime(2022, 7, 1)]"
@@ -271,30 +237,30 @@ def aquah_run(llm_model_name: str):
     args.time_end = time_period[1]
     args.selected_point = center_coords
     # default args
-    args.basin_shp_path = f'shpFile/Basin_selected.shp'
-    args.basin_level = 4
-    args.gauge_meta_path = 'EF5_tools/gauge_meta.csv'
-    args.figure_path = 'figures'
-    args.basic_data_path = 'BasicData'
-    args.basic_data_clip_path = 'BasicData_Clip'
-    args.usgs_data_path = 'USGS_gauge'
-    args.mrms_data_path = 'MRMS_data'
-    args.crest_input_mrms_path = 'CREST_input/MRMS/'
-    args.num_processes = 4
-    args.pet_data_path = 'PET_data'
-    args.crest_input_pet_path = 'CREST_input/PET/'
-    args.crest_output_path = 'CREST_output'
-    args.control_file_path = 'control.txt'
-    args.report_path = 'report'
-    args.time_step = '1d'
-    args.time_step = '1h'
+    args.basin_shp_path = cli_args.basin_shp_path
+    args.basin_level = cli_args.basin_level
+    args.gauge_meta_path = cli_args.gauge_meta_path
+    args.figure_path = cli_args.figure_path
+    args.basic_data_path = cli_args.basic_data_path
+    args.basic_data_clip_path = cli_args.basic_data_clip_path
+    args.usgs_data_path = cli_args.usgs_data_path
+    args.mrms_data_path = cli_args.mrms_data_path
+    args.crest_input_mrms_path = cli_args.crest_input_mrms_path
+    args.num_processes = cli_args.num_processes
+    args.pet_data_path = cli_args.pet_data_path
+    args.crest_input_pet_path = cli_args.crest_input_pet_path
+    args.crest_output_path = cli_args.crest_output_path
+    args.control_file_path = cli_args.control_file_path
+    args.report_path = cli_args.report_path
+    args.time_step = cli_args.time_step
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
     args.figure_path = os.path.join(args.figure_path, current_time)
     args.input_text = input_text
-    args.water_balance_type = 'crest'
-    args.warmup_flag = True
+    args.water_balance_type = cli_args.water_balance_type
+    args.warmup_flag = cli_args.warmup_flag
+    args.skip_download = cli_args.skip_download
     args.warmup_time_step = args.time_step
-    args.warmup_days = 30
+    args.warmup_days = cli_args.warmup_days
     args.warmup_time_end = args.time_start
     args.warmup_state_folder = os.path.join('warmup_state', current_time)
     if args.warmup_flag:
@@ -355,10 +321,9 @@ def aquah_run(llm_model_name: str):
     print('Step 4: Download Precipitation and Potential Evapotranspiration Data')
     print('--------------------------------------------------------\033[0m\033[0m\n')
     # Input data download
-    data_download_flag = False
-    data_download_flag = True
-
-    if data_download_flag:
+    if cli_args.skip_download:
+        print("Skipping data download because --skip_download is enabled.")
+    else:
         import importlib
         import tools.precipitation_processor
         importlib.reload(tools.precipitation_processor)
@@ -513,8 +478,6 @@ def aquah_run(llm_model_name: str):
         print(f"Saved simulation arguments to: {args_output_path}")
         args = copy.deepcopy(args_new)
         crest_args = copy.deepcopy(crest_args_new)
-
-
 
 
 

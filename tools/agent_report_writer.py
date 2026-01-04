@@ -24,6 +24,8 @@ import requests
 from PIL import Image
 from crewai import Agent, Crew, Task, Process
 
+from tools.prompt_loader import load_prompts
+
 # ─────────────────────────────────────────────────────────────────────────────
 # ENV PATCH: allow google.generativeai + LiteLLM style key reuse
 # ─────────────────────────────────────────────────────────────────────────────
@@ -158,20 +160,11 @@ def make_report_for_figures(fig_dir: str, *, model: str = "gpt-4o", temperature:
     if missing:
         raise FileNotFoundError("Missing figure(s): " + ", ".join(missing))
 
-    system_prompt = (
-        "You are a senior hydrologist writing an internal technical memo.\n"
-        "You will receive three figures in order:\n"
-        "① combined_maps → basin outline + all USGS gauges and flow accumulation with gauges;\n"
-        "② basic_data → DEM / FAM / DDM overview of the same basin;\n"
-        "③ results → hydro-simulation result plot (obs, precip, sim curves).\n\n"
-        "Generate a concise **Markdown report** with **three sections**:\n"
-        "1. **Basin & Gauge Map**  – main features, which gauges appear downstream, notable geography;\n"
-        "2. **Fundamental Basin Data** – comment on DEM (relief), FAM (flow acc.), DDM (drain‑dens.);\n"
-        "3. **Simulation vs Observation** – describe each curve, comment on fit, peaks, lags, bias.\n\n"
-    )
+    prompts = load_prompts()
+    system_prompt = prompts["report_writer"]["system_prompt"]
 
     # The provider wrappers expect *user* content only, so blend roles manually.
-    full_prompt = system_prompt + "Please draft the report as requested."
+    full_prompt = system_prompt + prompts["report_writer"]["user_suffix"]
 
     return vision_chat(model, [str(p) for p in img_paths], full_prompt, temperature=temperature).strip()
 
@@ -314,5 +307,4 @@ def final_report_writer(args, crest_args, agents_config, tasks_config, iteration
     output = pypandoc.convert_file('Hydro_Report.md', 'pdf', outputfile=output_pdf_path,extra_args=extra)
     print(f"PDF report saved to {os.path.abspath(output_pdf_path)}")
     print("=== LLM used for report writing ===\n", report_writer.llm.model)
-
 

@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Tuple
 import requests
 from PIL import Image
 
+from tools.prompt_loader import load_prompts
+
 # ─────────────────────────────────────────────────────────────────────────────
 # ENVIRONMENT PATCH: make LiteLLM pick up the same key google.generativeai uses
 # ─────────────────────────────────────────────────────────────────────────────
@@ -183,16 +185,11 @@ def describe_basin_for_crest(
     img_dir = Path(args.figure_path)
     imgs = [img_dir / "basin_map_with_gauges.png", img_dir / "basic_data.png"]
 
-    prompt = (
-        f"Basin Name: {args.basin_name}\n"
-        f"Basin Area (km2): {args.basin_area}\n"
-        f"Selected Outlet Gauge ID: {args.gauge_id}\n\n"
-        "Write ONE paragraph (≤8 sentences, 200‑300 words) summarising all "
-        "physiographic & hydrologic traits relevant to initial CREST parameters. "
-        "List location, elevation range, slope, land‑cover, imperviousness, soil "
-        "texture / Ks class, reservoirs, drainage density, snow influence, "
-        "flashiness.  Use numeric values when visible; if uncertain, qualify "
-        "with 'likely'.  Plain text only."
+    prompts = load_prompts()
+    prompt = prompts["parameter_initial_guess"]["basin_description_prompt"].format(
+        basin_name=args.basin_name,
+        basin_area=args.basin_area,
+        gauge_id=args.gauge_id,
     )
 
     return vision_chat(str(vision_model), [str(p) for p in imgs], prompt, temperature=temperature).strip()
@@ -271,12 +268,9 @@ def estimate_crest_args(basin_desc: str, args: Any) -> Tuple[str, str]:
     )
 
     # (1) Retrieve default parameter ranges
+    prompts = load_prompts()
     guide_task = Task(
-        description=(
-            "Use tools to summarise default CREST parameter ranges and physical "
-            "meaning (wm, b, im, ke, fc, iwu, under, leaki, th, isu, alpha, "
-            "beta, alpha0) within 500 words."
-        ),
+        description=prompts["parameter_initial_guess"]["guide_task_description"],
         expected_output="≤500 words summary",
         agent=estimator,
     )
@@ -284,22 +278,9 @@ def estimate_crest_args(basin_desc: str, args: Any) -> Tuple[str, str]:
     guide = guide_task.output.raw.strip()
 
     # (2) Produce JSON line with code + explanation
-    prompt = (
-        # "You are a hydrologist. Using the parameter guide and basin description, also this simulation is for a Hurricane (The hurricane result shows a sharp peak — it rises quickly and falls just as fast), "
-        # "propose first-guess CREST parameters, use parameters that can lead to higher peak discharge.\n\n"
-        "You are a hydrologist. Using the parameter guide and basin description, "
-        "propose first-guess CREST parameters\n\n"
-        f"Basin description:\n{basin_desc}\n\n"
-        f"Parameter guide:\n{guide}\n\n"
-        "Return EXACTLY one line of JSON, formatted like (change the values to the ones you think are reasonable):\n"
-        "{\"code\":\"crest_args = types.SimpleNamespace(wm=200.0, b=10.0, im=0.15, ke=0.8, "
-        "fc=50.0, iwu=25.0, under=1.0, leaki=0.05, th=100.0, isu=0.0, alpha=1.5, beta=0.6, "
-        "alpha0=1.0, grid_on=False)\","
-        # "{\"code\":\"crest_args = types.SimpleNamespace(wm=<value>, b=<value>, im=<value>, ke=<value>, "
-        # "fc=<value>, iwu=<value>, under=<value>, leaki=<value>, th=<value>, isu=<value>, alpha=<value>, beta=<value>, "
-        # "alpha0=<value>, grid_on=False)\","
-        "\"explanation\":\"each param justified in 100 to 300 words\"}\n"
-        "NO markdown, NO extra keys."
+    prompt = prompts["parameter_initial_guess"]["estimate_task_prompt"].format(
+        basin_desc=basin_desc,
+        guide=guide,
     )
 
     est_task = Task(description=prompt, expected_output="One-line JSON", agent=estimator)
