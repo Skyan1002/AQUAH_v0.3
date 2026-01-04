@@ -1,0 +1,40 @@
+# --- Base Scientific Computing ---
+numpy<2.0.0
+pandas
+scipy
+matplotlib
+
+# --- Geospatial Core (GDAL/Shapely/GeoPandas) ---
+# 'gdal' provides the 'osgeo' module. 
+# Note: It requires libgdal-dev (installed in Dockerfile) to build.
+gdal==3.4.1
+shapely
+geopandas
+rasterio
+cartopy
+contextily
+dataretrieval
+
+# --- Visualization & Maps ---
+folium
+mapclassify
+
+# --- Image Processing ---
+# Provides 'from PIL import Image'
+Pillow
+
+# --- Utilities ---
+# Progress bars, config parsing, and tracing
+tqdm
+PyYAML
+opentelemetry-api
+
+# --- AI Agents & Tools ---
+requests==2.32.4
+tokenizers==0.22.0
+pypandoc
+crewai==0.75.0
+crewai-tools==0.13.2
+
+# --- Optional (for OpenAI integration) ---
+langchain_openai
