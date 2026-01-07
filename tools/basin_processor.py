@@ -1555,6 +1555,10 @@ def basin_processor(args):
 
     if args.skip_basic_data:
         print("Skipping basic data download and clipping (--skip_basic_data enabled).")
+        try:
+            visualize_clipped_data_with_basin(args.basic_data_clip_path, args.basin_shp_path, args.figure_path)
+        except Exception as e:
+            print(f"Warning: failed to render basic_data.png from existing clips: {str(e)}")
     else:
         download_hydrosheds_data(bbox_coords, args.basic_data_path)
         batch_clip_tifs_by_shapefile(args.basic_data_path, args.basic_data_clip_path, args.basin_shp_path)
@@ -1565,5 +1569,4 @@ def basin_processor(args):
     visualize_dem_with_gauges(args.basin_shp_path, gauges_list, args.basic_data_clip_path, args.figure_path)
     visualize_figures_basin(args.figure_path)
     return Basin_Area, Basin_Name, gauges_list, gauges_description
-
 
