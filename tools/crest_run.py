@@ -19,7 +19,7 @@ def _precip_template(time_step: str, reference_time: datetime) -> tuple[str, str
         unit_precip = "mm/d"
         mrms_file_name = "precipitation_MRMS_YYYYMMDD00.tif"
     elif time_step == "2u":
-        unit_precip = "mm/2u"
+        unit_precip = "mm/h"
         mrms_file_name = "precipitation_MRMS_YYYYMMDDHHUU00.tif"
     else:
         raise ValueError("time_step must be '1h', '1d', or '2u'")
