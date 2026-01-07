@@ -10,13 +10,16 @@
 --usgs_data_path USGS_gauge
 --mrms_data_path MRMS_data
 --crest_input_mrms_path CREST_input/MRMS/
+--mrms_2min_data_path MRMS_2min_data
+--crest_input_mrms_2min_path CREST_input/MRMS_2min/
 --num_processes 4
 --pet_data_path PET_data
 --crest_input_pet_path CREST_input/PET/
 --crest_output_path CREST_output
 --control_file_path control.txt
 --report_path report
---time_step 1h
+--time_step 2u
+--warmup_time_step 1h
 --water_balance_type crest
 --warmup_flag
 --warmup_days 30

@@ -6,12 +6,32 @@ import pandas as pd
 # Global timeout setting for EF5 process (in seconds)
 TIMEOUT_S = 4000
 
+def _precip_template(time_step: str, reference_time: datetime) -> tuple[str, str]:
+    fmt_cut = datetime(2020, 10, 15)
+    if time_step == "1h":
+        unit_precip = "mm/h"
+        mrms_file_name = (
+            "GaugeCorr_QPE_01H_00.00_YYYYMMDD-HH0000.tif"
+            if reference_time < fmt_cut
+            else "MultiSensor_QPE_01H_Pass2_00.00_YYYYMMDD-HH0000.tif"
+        )
+    elif time_step == "1d":
+        unit_precip = "mm/d"
+        mrms_file_name = "precipitation_MRMS_YYYYMMDD00.tif"
+    elif time_step == "2u":
+        unit_precip = "mm/2u"
+        mrms_file_name = "precipitation_MRMS_YYYYMMDDHHUU00.tif"
+    else:
+        raise ValueError("time_step must be '1h', '1d', or '2u'")
+    return unit_precip, mrms_file_name
+
 def generate_control_file(
     time_begin: datetime,
     time_end: datetime,
     time_step: str,
     basic_data_path: str,
     mrms_path: str,
+    mrms_2min_path: Optional[str],
     pet_path: str,
     gauge_id: str,
     gauge_lon: float,
@@ -66,6 +86,7 @@ def generate_control_file(
     # Paths → absolute
     basic_data_path = os.path.abspath(basic_data_path)
     mrms_path = os.path.abspath(mrms_path)
+    mrms_2min_path = os.path.abspath(mrms_2min_path) if mrms_2min_path else mrms_path
     pet_path = os.path.abspath(pet_path)
     usgs_data_path = os.path.abspath(usgs_data_path)
     output_dir = os.path.abspath(output_dir)
@@ -111,9 +132,10 @@ def generate_control_file(
     kw_param_section = _repeat_block("kwparamset KWParam", kw_lines)
 
     # ---------- Task Simu ----------
+    simu_precip = "MRMS_2min" if time_step == "2u" else "MRMS"
     task_simu = (
         "[Task Simu]\nSTYLE=SIMU\nMODEL=CREST\nROUTING=KW\nBASIN=0\n"
-        f"PRECIP=MRMS\nPET=PET\nOUTPUT={output_dir}\nPARAM_SET=CrestParam\nROUTING_PARAM_Set=KWParam\n"
+        f"PRECIP={simu_precip}\nPET=PET\nOUTPUT={output_dir}\nPARAM_SET=CrestParam\nROUTING_PARAM_Set=KWParam\n"
         f"TIMESTEP={time_step}\n"
     )
     if grid_on:
@@ -121,25 +143,20 @@ def generate_control_file(
     task_simu += f"TIME_BEGIN={time_begin:%Y%m%d%H%M}\nTIME_END={time_end:%Y%m%d%H%M}\n\n"
 
     # ---------- Precip forcing template ----------
-    fmt_cut = datetime(2020, 10, 15)
-    if time_step == "1h":
-        unit_precip = "mm/h"
-        mrms_file_name = (
-            "GaugeCorr_QPE_01H_00.00_YYYYMMDD-HH0000.tif"
-            if time_begin < fmt_cut
-            else "MultiSensor_QPE_01H_Pass2_00.00_YYYYMMDD-HH0000.tif"
+    unit_precip, mrms_file_name = _precip_template(time_step, time_begin)
+    precip_sections = (
+        f"[PrecipForcing MRMS]\nTYPE=TIF\nUNIT={unit_precip}\nFREQ={time_step}\nLOC={mrms_path}\nNAME={mrms_file_name}\n\n"
+    )
+    if time_step == "2u":
+        precip_sections = (
+            f"[PrecipForcing MRMS_2min]\nTYPE=TIF\nUNIT={unit_precip}\nFREQ={time_step}\nLOC={mrms_2min_path}\nNAME={mrms_file_name}\n\n"
         )
-    elif time_step == "1d":
-        unit_precip = "mm/d"
-        mrms_file_name = "precipitation_MRMS_YYYYMMDD00.tif"
-    else:
-        raise ValueError("time_step must be '1h' or '1d'")
 
     # ---------- Combine all ----------
     control_content = (
         f"[Basic]\nDEM={basic_data_path}/dem_clip.tif\nDDM={basic_data_path}/fdir_clip.tif\nFAM={basic_data_path}/facc_clip.tif\n\n"
         "PROJ=geographic\nESRIDDM=true\nSelfFAM=true\n\n"
-        f"[PrecipForcing MRMS]\nTYPE=TIF\nUNIT={unit_precip}\nFREQ={time_step}\nLOC={mrms_path}\nNAME={mrms_file_name}\n\n"
+        f"{precip_sections}"
         f"[PETForcing PET]\nTYPE=TIF\nUNIT=mm/100d\nFREQ=d\nLOC={pet_path}\nNAME=etYYYYMMDD.tif\n\n"
         + gauges_section
         + basin_section
@@ -409,6 +426,7 @@ def crest_run(args,crest_args):
         time_step=args.time_step,
         basic_data_path=args.basic_data_clip_path,
         mrms_path=args.crest_input_mrms_path,
+        mrms_2min_path=args.crest_input_mrms_2min_path,
         pet_path=args.crest_input_pet_path,
         gauge_id=args.gauge_id,
         gauge_lon=args.longitude_gauge,
@@ -543,6 +561,7 @@ def generate_control_file_default(
     time_step,
     basic_data_path,
     mrms_path,
+    mrms_2min_path,
     pet_path,
     gauge_id,
     gauge_lon,
@@ -577,17 +596,19 @@ def generate_control_file_default(
     # Convert all paths to absolute paths
     basic_data_path = os.path.abspath(basic_data_path)
     mrms_path = os.path.abspath(mrms_path)
+    mrms_2min_path = os.path.abspath(mrms_2min_path) if mrms_2min_path else mrms_path
     pet_path = os.path.abspath(pet_path)
     usgs_data_path = os.path.abspath(usgs_data_path)
     output_dir = os.path.abspath(output_dir)
     
     # Prepare the Task Simu section with optional output_grids parameter
+    simu_precip = "MRMS_2min" if time_step == "2u" else "MRMS"
     task_simu = """[Task Simu]
     STYLE=SIMU
     MODEL=CREST
     ROUTING=KW
     BASIN=0
-    PRECIP=MRMS
+    PRECIP={simu_precip}
     PET=PET
     OUTPUT={output_dir}
     PARAM_SET=CrestParam
@@ -605,21 +626,10 @@ def generate_control_file_default(
     """
         
     # Determine file format based on date
-    format_change_date = datetime(2020, 10, 15)
-    if time_step == '1h':
-        unit_precip = 'mm/h'
-        if time_begin < format_change_date:
-            # Before October 15, 2020: GaugeCorr format
-            mrms_file_name = "GaugeCorr_QPE_01H_00.00_YYYYMMDD-HH0000.tif"
-        else:
-            # October 15, 2020 and after: MultiSensor format
-            mrms_file_name = "MultiSensor_QPE_01H_Pass2_00.00_YYYYMMDD-HH0000.tif"
-    elif time_step == '1d':
-        unit_precip = 'mm/d'
-        mrms_file_name = "precipitation_MRMS_YYYYMMDD00.tif"
+    unit_precip, mrms_file_name = _precip_template(time_step, time_begin)
 
-        
-        control_content = f"""[Basic]
+    precip_path = mrms_2min_path if time_step == "2u" else mrms_path
+    control_content = f"""[Basic]
     DEM={basic_data_path}/dem_clip.tif
     DDM={basic_data_path}/fdir_clip.tif
     FAM={basic_data_path}/facc_clip.tif
@@ -628,11 +638,11 @@ def generate_control_file_default(
     ESRIDDM=true
     SelfFAM=true
 
-    [PrecipForcing MRMS]
+    [PrecipForcing {simu_precip}]
     TYPE=TIF
     UNIT={unit_precip}
     FREQ={time_step}
-    LOC={mrms_path}
+    LOC={precip_path}
     NAME={mrms_file_name}
 
     [PETForcing PET]
@@ -682,6 +692,7 @@ def generate_control_file_default(
     isu=00.0
 
     {task_simu.format(
+        simu_precip=simu_precip,
         output_dir=output_dir,
         time_begin=time_begin.strftime('%Y%m%d%H%M'),
         time_end=time_end.strftime('%Y%m%d%H%M'),
@@ -709,6 +720,7 @@ def crest_run_default(args):
         time_step=args.time_step,
         basic_data_path=args.basic_data_clip_path,
         mrms_path=args.crest_input_mrms_path,
+        mrms_2min_path=args.crest_input_mrms_2min_path,
         pet_path=args.crest_input_pet_path,
         gauge_id=args.gauge_id,
         gauge_lon=args.longitude_gauge,
@@ -813,6 +825,7 @@ def generate_control_file_cali(
     time_step: str,
     basic_data_path: str,
     mrms_path: str,
+    mrms_2min_path: str,
     pet_path: str,
     gauges_list: pd.DataFrame,
     usgs_data_path: str = "",
@@ -874,6 +887,7 @@ def generate_control_file_cali(
     # Paths → absolute
     basic_data_path = os.path.abspath(basic_data_path)
     mrms_path = os.path.abspath(mrms_path)
+    mrms_2min_path = os.path.abspath(mrms_2min_path) if mrms_2min_path else mrms_path
     pet_path = os.path.abspath(pet_path)
     usgs_data_path = os.path.abspath(usgs_data_path)
     output_dir = os.path.abspath(output_dir)
@@ -954,9 +968,10 @@ def generate_control_file_cali(
     kw_param_section = "\n".join(kw_lines) + "\n\n"
 
     # ------- Task Simu -------
+    simu_precip = "MRMS_2min" if time_step == "2u" else "MRMS"
     task_simu = (
         f"[Task Simu]\nSTYLE=SIMU\nMODEL={water_balance_type}\nROUTING=KW\nBASIN=0\n"
-        f"PRECIP=MRMS\nPET=PET\nOUTPUT={output_dir}\nPARAM_SET=CrestParam\nROUTING_PARAM_Set=KWParam\n"
+        f"PRECIP={simu_precip}\nPET=PET\nOUTPUT={output_dir}\nPARAM_SET=CrestParam\nROUTING_PARAM_Set=KWParam\n"
         f"TIMESTEP={time_step}\n"
     )
     if grid_on:
@@ -981,29 +996,30 @@ def generate_control_file_cali(
         task_warmup = ""
 
     # ------- Precip forcing filename templates -------
-    fmt_cut = datetime(2020, 10, 15)
-    if time_step == "1h":
-        unit_precip = "mm/h"
-        mrms_file_name = (
-            "GaugeCorr_QPE_01H_00.00_YYYYMMDD-HH0000.tif"
-            if time_begin < fmt_cut
-            else "MultiSensor_QPE_01H_Pass2_00.00_YYYYMMDD-HH0000.tif"
-        )
-    elif time_step == "1d":
-        unit_precip = "mm/d"
-        mrms_file_name = "precipitation_MRMS_YYYYMMDD00.tif"
-    else:
-        raise ValueError("time_step must be '1h' or '1d'")
+    warmup_step = warmup_time_step or time_step
+    warmup_reference_time = warmup_time_begin or time_begin
+    warmup_unit_precip, warmup_mrms_file_name = _precip_template(warmup_step, warmup_reference_time)
+    simu_unit_precip, simu_mrms_file_name = _precip_template(time_step, time_begin)
 
     execute_task = "[Execute]\nTASK=Simu\n"
     if warmup_flag:
         execute_task = "[Execute]\nTASK=Warmup\nTASK=Simu\n"
 
     # ------- Combine all sections -------
+    precip_sections = (
+        f"[PrecipForcing MRMS]\nTYPE=TIF\nUNIT={warmup_unit_precip}\nFREQ={warmup_step}\n"
+        f"LOC={mrms_path}\nNAME={warmup_mrms_file_name}\n\n"
+    )
+    if time_step == "2u":
+        precip_sections += (
+            f"[PrecipForcing MRMS_2min]\nTYPE=TIF\nUNIT={simu_unit_precip}\nFREQ={time_step}\n"
+            f"LOC={mrms_2min_path}\nNAME={simu_mrms_file_name}\n\n"
+        )
+
     control_content = (
         f"[Basic]\nDEM={basic_data_path}/dem_clip.tif\nDDM={basic_data_path}/fdir_clip.tif\nFAM={basic_data_path}/facc_clip.tif\n\n"
         "PROJ=geographic\nESRIDDM=true\nSelfFAM=true\n\n"
-        f"[PrecipForcing MRMS]\nTYPE=TIF\nUNIT={unit_precip}\nFREQ={time_step}\nLOC={mrms_path}\nNAME={mrms_file_name}\n\n"
+        f"{precip_sections}"
         f"[PETForcing PET]\nTYPE=TIF\nUNIT=mm/100d\nFREQ=d\nLOC={pet_path}\nNAME=etYYYYMMDD.tif\n\n"
         + gauges_section
         + basin_section
@@ -1031,6 +1047,7 @@ def crest_run_cali(args):
     time_step = args.time_step,
     basic_data_path = args.basic_data_clip_path,
     mrms_path = args.crest_input_mrms_path,
+    mrms_2min_path = args.crest_input_mrms_2min_path,
     pet_path = args.crest_input_pet_path,
     gauges_list = args.gauges_list,
     usgs_data_path = args.usgs_data_path,

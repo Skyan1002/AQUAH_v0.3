@@ -246,6 +246,8 @@ def aquah_run(cli_args):
     args.usgs_data_path = cli_args.usgs_data_path
     args.mrms_data_path = cli_args.mrms_data_path
     args.crest_input_mrms_path = cli_args.crest_input_mrms_path
+    args.mrms_2min_data_path = cli_args.mrms_2min_data_path
+    args.crest_input_mrms_2min_path = cli_args.crest_input_mrms_2min_path
     args.num_processes = cli_args.num_processes
     args.pet_data_path = cli_args.pet_data_path
     args.crest_input_pet_path = cli_args.crest_input_pet_path
@@ -259,7 +261,7 @@ def aquah_run(cli_args):
     args.water_balance_type = cli_args.water_balance_type
     args.warmup_flag = cli_args.warmup_flag
     args.skip_download = cli_args.skip_download
-    args.warmup_time_step = args.time_step
+    args.warmup_time_step = cli_args.warmup_time_step
     args.warmup_days = cli_args.warmup_days
     args.warmup_time_end = args.time_start
     args.warmup_state_folder = os.path.join('warmup_state', current_time)
@@ -478,7 +480,6 @@ def aquah_run(cli_args):
         print(f"Saved simulation arguments to: {args_output_path}")
         args = copy.deepcopy(args_new)
         crest_args = copy.deepcopy(crest_args_new)
-
 
 
 

@@ -204,8 +204,71 @@ def download_mrms_precipitation(start_date, end_date, download_folder='../MRMS_p
             print(f"Note: {skipped_files} files were skipped (already exist)")
         if failed_downloads > 0:
             print(f"Note: {failed_downloads} files failed to download")
+    elif time_step == '2u':
+        # 2-minute data
+        if not os.path.exists(download_folder):
+            os.makedirs(download_folder)
+        else:
+            # Clear all files in the destination folder before downloading
+            for file_path in glob.glob(os.path.join(download_folder, '*')):
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            print(f"Cleared all existing files in {download_folder}")
+
+        base_url = "https://mtarchive.geol.iastate.edu/"
+
+        total_steps = int((end_date - start_date).total_seconds() / 120) + 1
+
+        print(f"Downloading MRMS 2-minute precipitation rate data from {start_date} to {end_date}")
+        print(f"Files will be saved to: {os.path.abspath(download_folder)}")
+
+        current_time = start_date
+        failed_downloads = 0
+
+        with tqdm(total=total_steps, desc="Downloading MRMS 2-min data") as pbar:
+            while current_time <= end_date:
+                year_str = current_time.strftime('%Y')
+                month_str = current_time.strftime('%m')
+                day_str = current_time.strftime('%d')
+                time_str = current_time.strftime('%H%M%S')
+
+                product_dir = "PrecipRate"
+                file_prefix = "PrecipRate"
+
+                file_name = f"{file_prefix}_00.00_{year_str}{month_str}{day_str}-{time_str}.grib2.gz"
+                file_url = f"{base_url}{year_str}/{month_str}/{day_str}/mrms/ncep/{product_dir}/{file_name}"
+
+                output_file = os.path.join(download_folder, file_name)
+
+                try:
+                    response = requests.get(file_url)
+                    response.raise_for_status()
+
+                    with open(output_file, 'wb') as f:
+                        f.write(response.content)
+
+                    extracted_file = output_file[:-3]
+                    with gzip.open(output_file, 'rb') as f_in:
+                        with open(extracted_file, 'wb') as f_out:
+                            shutil.copyfileobj(f_in, f_out)
+
+                    os.remove(output_file)
+                except Exception as e:
+                    failed_downloads += 1
+                    tqdm.write(f"Failed to download or extract: {file_url} - Error: {str(e)[:100]}...")
+
+                current_time += timedelta(minutes=2)
+                pbar.update(1)
+
+        print(f"MRMS 2-minute download complete. Files saved in: {os.path.abspath(download_folder)}")
+        if failed_downloads > 0:
+            print(f"Note: {failed_downloads} files failed to download")
+    else:
+        raise ValueError("time_step must be '1h', '1d', or '2u'")
             
-def _process_single_file(grib_file, output_folder, basin_clipping, expanded_bounds, start_date=None, end_date=None):
+def _process_single_file(grib_file, output_folder, basin_clipping, expanded_bounds, start_date=None, end_date=None, output_name=None):
     """
     Helper function to process a single GRIB2 file.
     It converts the file to GeoTIFF format and clips it if basin clipping is enabled.
@@ -220,7 +283,7 @@ def _process_single_file(grib_file, output_folder, basin_clipping, expanded_boun
         tuple: (base filename, error message or None if successful)
     """
     base_name = os.path.basename(grib_file)
-    output_name = os.path.splitext(base_name)[0] + '.tif'
+    output_name = output_name or (os.path.splitext(base_name)[0] + '.tif')
     output_path = os.path.join(output_folder, output_name)
     try:
         # Open the grib2 file using GDAL
@@ -349,6 +412,19 @@ def _process_single_file_daily(grib_file, output_folder, basin_clipping, expande
         
     except Exception as e:
         return base_name, str(e)[:100]
+
+def _mrms_2min_output_name(base_name):
+    import re
+    date_match = re.search(r'(\d{8})-(\d{6})', base_name)
+    if date_match:
+        date_part = date_match.group(1)
+        time_part = date_match.group(2)
+        try:
+            dt = datetime.strptime(f"{date_part}{time_part}", '%Y%m%d%H%M%S')
+            return f"precipitation_MRMS_{dt:%Y%m%d%H%M}00.tif"
+        except ValueError:
+            return None
+    return None
 
 def process_mrms_grib2_to_tif(input_folder='../MRMS_precipitation', 
                               output_folder='../CREST_input/MRMS/', 
@@ -559,9 +635,136 @@ def process_mrms_grib2_to_tif(input_folder='../MRMS_precipitation',
         print(f"MRMS daily conversion completed. Output files saved to {os.path.abspath(output_folder)}")
         if failed_files > 0:
             print(f"Note: {failed_files} files failed to process")
+    elif time_step == '2u':
+        # 2-minute processing
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+        else:
+            for file_path in glob.glob(os.path.join(output_folder, '*')):
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+            print(f"Cleared all existing files in {output_folder}")
+
+        # Load the basin shapefile and compute expanded bounds for clipping
+        try:
+            basin_gdf = gpd.read_file(basin_shp_path)
+            basin_bounds = basin_gdf.total_bounds  # (minx, miny, maxx, maxy)
+
+            width = basin_bounds[2] - basin_bounds[0]
+            height = basin_bounds[3] - basin_bounds[1]
+            buffer_x = width * 1
+            buffer_y = height * 1
+
+            expanded_bounds = (
+                basin_bounds[0] - buffer_x,
+                basin_bounds[1] - buffer_y,
+                basin_bounds[2] + buffer_x,
+                basin_bounds[3] + buffer_y
+            )
+
+            print(f"Loaded basin shapefile: {basin_shp_path}")
+            print(f"Original bounds: ({basin_bounds[0]:.3f}, {basin_bounds[1]:.3f}, "
+                f"{basin_bounds[2]:.3f}, {basin_bounds[3]:.3f})")
+            print(f"Expanded bounds: ({expanded_bounds[0]:.3f}, {expanded_bounds[1]:.3f}, "
+                f"{expanded_bounds[2]:.3f}, {expanded_bounds[3]:.3f})")
+            basin_clipping = True
+        except Exception as e:
+            print(f"Error loading basin shapefile: {str(e)}")
+            print("Processing will continue without clipping to basin boundary")
+            basin_gdf = None
+            expanded_bounds = None
+            basin_clipping = False
+
+        grib2_files = glob.glob(os.path.join(input_folder, '*.grib2'))
+        if not grib2_files:
+            print(f"No grib2 files found in {input_folder}")
+            return
+
+        print(f"Processing {len(grib2_files)} MRMS grib2 files to GeoTIFF format (2-minute)")
+        print(f"Input folder: {os.path.abspath(input_folder)}")
+        print(f"Output folder: {os.path.abspath(output_folder)}")
+
+        failed_files = 0
+
+        def _output_name_for_file(file_path):
+            base_name = os.path.basename(file_path)
+            output_name = _mrms_2min_output_name(base_name)
+            if not output_name:
+                output_name = os.path.splitext(base_name)[0] + '.tif'
+            return output_name
+
+        if num_processes == 1:
+            for grib_file in tqdm(grib2_files, desc="Converting MRMS to GeoTIFF (2-minute)"):
+                output_name = _output_name_for_file(grib_file)
+                base_name, error = _process_single_file(
+                    grib_file, output_folder, basin_clipping, expanded_bounds,
+                    start_date, end_date, output_name=output_name
+                )
+                if error:
+                    tqdm.write(f"Error processing {base_name}: {error}")
+                    failed_files += 1
+        else:
+            with ProcessPoolExecutor(max_workers=num_processes) as executor:
+                futures = {
+                    executor.submit(
+                        _process_single_file,
+                        grib_file,
+                        output_folder,
+                        basin_clipping,
+                        expanded_bounds,
+                        start_date,
+                        end_date,
+                        _output_name_for_file(grib_file),
+                    ): grib_file
+                    for grib_file in grib2_files
+                }
+                for future in tqdm(as_completed(futures), total=len(futures), desc="Converting MRMS to GeoTIFF (2-minute)"):
+                    base_name, error = future.result()
+                    if error:
+                        tqdm.write(f"Error processing {base_name}: {error}")
+                        failed_files += 1
+
+        tif_files = glob.glob(os.path.join(output_folder, '*.tif'))
+        print(f"Ensuring proper format for {len(tif_files)} output files")
+
+        for file_path in tqdm(tif_files, desc="Checking output formats (2-minute)"):
+            try:
+                with rasterio.open(file_path) as src:
+                    data = src.read(1)
+                    data = np.where((data > 1000) | (data < 0), -9999, data)
+                    data_float32 = data.astype('float32')
+                    meta = src.meta.copy()
+                    meta.update({'dtype': 'float32', 'nodata': -9999, 'compress': 'none'})
+                with rasterio.open(file_path, 'w', **meta) as dst:
+                    dst.write(data_float32, 1)
+            except Exception as e:
+                print(f"Error formatting {os.path.basename(file_path)}: {str(e)[:100]}...")
+
+        print(f"MRMS 2-minute conversion completed. Output files saved to {os.path.abspath(output_folder)}")
+        if failed_files > 0:
+            print(f"Note: {failed_files} files failed to process")
+    else:
+        raise ValueError("time_step must be '1h', '1d', or '2u'")
 
 def precipitation_processor(args):
-    download_mrms_precipitation(args.warmup_time_start, args.time_end, args.mrms_data_path, args.time_step)
-    process_mrms_grib2_to_tif(args.mrms_data_path, args.crest_input_mrms_path, args.basin_shp_path, args.time_step, args.warmup_time_start, args.time_end, args.num_processes)
-
-
+    download_mrms_precipitation(args.warmup_time_start, args.time_end, args.mrms_data_path, args.warmup_time_step)
+    process_mrms_grib2_to_tif(
+        args.mrms_data_path,
+        args.crest_input_mrms_path,
+        args.basin_shp_path,
+        args.warmup_time_step,
+        args.warmup_time_start,
+        args.time_end,
+        args.num_processes,
+    )
+    if args.time_step == '2u':
+        download_mrms_precipitation(args.time_start, args.time_end, args.mrms_2min_data_path, args.time_step)
+        process_mrms_grib2_to_tif(
+            args.mrms_2min_data_path,
+            args.crest_input_mrms_2min_path,
+            args.basin_shp_path,
+            args.time_step,
+            args.time_start,
+            args.time_end,
+            args.num_processes,
+        )
