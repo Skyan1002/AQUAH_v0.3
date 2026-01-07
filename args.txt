@@ -1,25 +1,49 @@
---llm_model_name gpt-4o
---vision_model_name gpt-4o
---input_text I want to simulate basin Fort Cobb, from 2022 June to July
---basin_shp_path shpFile/Basin_selected.shp
---basin_level 4
---gauge_meta_path EF5_tools/gauge_meta.csv
---figure_path figures
---basic_data_path BasicData
---basic_data_clip_path BasicData_Clip
---usgs_data_path USGS_gauge
---mrms_data_path MRMS_data
---crest_input_mrms_path CREST_input/MRMS/
---mrms_2min_data_path MRMS_2min_data
---crest_input_mrms_2min_path CREST_input/MRMS_2min/
---num_processes 4
---pet_data_path PET_data
---crest_input_pet_path CREST_input/PET/
---crest_output_path CREST_output
---control_file_path control.txt
---report_path report
---time_step 2u
---warmup_time_step 1h
---water_balance_type crest
+--llm_model_name
+gpt-5
+--vision_model_name
+gpt-5
+--input_text
+Please use Gauge 08165500, 30.0699 N, -99.3217 W, time 20250703 to 20250705.  Guadalupe river
+--basin_shp_path
+shpFile/Basin_selected.shp
+--basin_level
+5
+--gauge_meta_path
+EF5_tools/gauge_meta.csv
+--figure_path
+figures
+--basic_data_path
+BasicData
+--basic_data_clip_path
+BasicData_Clip
+--usgs_data_path
+USGS_gauge
+--mrms_data_path
+MRMS_data
+--crest_input_mrms_path
+CREST_input/MRMS/
+--mrms_2min_data_path
+MRMS_2min_data
+--crest_input_mrms_2min_path
+CREST_input/MRMS_2min/
+--num_processes
+4
+--pet_data_path
+PET_data
+--crest_input_pet_path
+CREST_input/PET/
+--crest_output_path
+CREST_output
+--control_file_path
+control.txt
+--report_path
+report
+--time_step
+2u
+--warmup_time_step
+1h
+--water_balance_type
+crest
 --warmup_flag
---warmup_days 30
+--warmup_days
+30
