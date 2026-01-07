@@ -261,6 +261,7 @@ def aquah_run(cli_args):
     args.water_balance_type = cli_args.water_balance_type
     args.warmup_flag = cli_args.warmup_flag
     args.skip_download = cli_args.skip_download
+    args.skip_basic_data = cli_args.skip_basic_data
     args.warmup_time_step = cli_args.warmup_time_step
     args.warmup_days = cli_args.warmup_days
     args.warmup_time_end = args.time_start
@@ -480,7 +481,6 @@ def aquah_run(cli_args):
         print(f"Saved simulation arguments to: {args_output_path}")
         args = copy.deepcopy(args_new)
         crest_args = copy.deepcopy(crest_args_new)
-
 
 
 

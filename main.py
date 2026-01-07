@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup_flag", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--warmup_days", type=int, default=30)
     parser.add_argument("--skip_download", action="store_true", default=False)
+    parser.add_argument("--skip_basic_data", action="store_true", default=False)
     return parser
 
 
