@@ -13,7 +13,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--vision_model_name", default=None)
     parser.add_argument("--input_text", default=None)
     parser.add_argument("--basin_shp_path", default="shpFile/Basin_selected.shp")
-    parser.add_argument("--basin_level", type=int, default=4)
+    parser.add_argument("--basin_level", type=int, default=5)
     parser.add_argument("--gauge_meta_path", default="EF5_tools/gauge_meta.csv")
     parser.add_argument("--figure_path", default="figures")
     parser.add_argument("--basic_data_path", default="BasicData")
