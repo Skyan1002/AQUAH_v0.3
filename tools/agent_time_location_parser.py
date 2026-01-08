@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import Optional
+from typing import Optional, Tuple
 
 from crewai import Agent, Task, Crew
 from openai import OpenAI
@@ -65,7 +65,7 @@ def fetch_flash_flood_focus_coords(
     input_text: str,
     basin_name: str,
     event_context: Optional[dict] = None,
-) -> Optional[tuple[float, float]]:
+) -> Optional[Tuple[float, float]]:
     if not _should_search_flash_flood(input_text):
         return None
     api_key = os.getenv("OPENAI_API_KEY")
@@ -117,6 +117,50 @@ Output JSON only:
         return (float(result["latitude"]), float(result["longitude"]))
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def fetch_event_timezone_name(input_text: str, event_context: Optional[dict] = None) -> Optional[str]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    model_name = os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
+    client = OpenAI(api_key=api_key)
+    context_note = ""
+    if event_context:
+        context_note = f"\nExisting context:\n{json.dumps(event_context, ensure_ascii=False)}\n"
+    prompt = f"""
+You have access to live web search.
+
+Task:
+Identify the most likely IANA timezone name (e.g., "America/Chicago") for the event/location
+described by the user. If multiple locations are mentioned, choose the primary affected area.
+
+User input:
+{input_text}
+{context_note}
+
+Output JSON only:
+{{
+  "timezone": "IANA timezone name"
+}}
+"""
+    response = client.responses.create(
+        model=model_name,
+        input=prompt,
+        tools=[{"type": "web_search"}],
+    )
+    text_output = response.output_text
+    try:
+        result = json.loads(text_output)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", text_output, re.DOTALL)
+        if not match:
+            return None
+        result = json.loads(match.group(0))
+    timezone_name = result.get("timezone")
+    if isinstance(timezone_name, str) and timezone_name.strip():
+        return timezone_name.strip()
+    return None
 ## Agents
 # Fixed parse simulation info
 def fixed_parse_simulation_info(input_text: str, agents_config: dict, tasks_config: dict):
@@ -195,6 +239,8 @@ def get_basin_center_coords(
     focus_coords = fetch_flash_flood_focus_coords(input_text, basin_name, event_context)
     if focus_coords:
         return focus_coords
+    if _should_search_flash_flood(input_text):
+        print("Warning: Flash flood search did not return coordinates; falling back to basin center.")
     basin_center_agent = Agent(
         role=agents_config['basin_center_agent']['role'],
         goal=agents_config['basin_center_agent']['goal'],

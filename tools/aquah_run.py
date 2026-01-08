@@ -189,7 +189,11 @@ def aquah_run(cli_args):
     print('\n\033[1;31m\033[1m------------------------------------------------')
     print('Step 1: Determine Location and Time Period')
     print('------------------------------------------------\033[0m\033[0m\n')
-    from tools.agent_time_location_parser import fixed_parse_simulation_info, get_basin_center_coords
+    from tools.agent_time_location_parser import (
+        fixed_parse_simulation_info,
+        get_basin_center_coords,
+        fetch_event_timezone_name,
+    )
     result = {}
     try:
         result = fixed_parse_simulation_info(input_text, agents_config, tasks_config)
@@ -243,6 +247,19 @@ def aquah_run(cli_args):
             time_period = parse_time_period_string(time_period)
         except Exception as e:
             raise ValueError(f"Failed to parse time_period string: {e}")
+
+    event_timezone = fetch_event_timezone_name(input_text, result.get("event_context"))
+    if event_timezone:
+        from datetime import timezone
+        from zoneinfo import ZoneInfo
+
+        local_zone = ZoneInfo(event_timezone)
+        time_period = [
+            dt.replace(tzinfo=local_zone).astimezone(timezone.utc).replace(tzinfo=None)
+            for dt in time_period
+        ]
+    else:
+        print("Warning: Could not resolve event timezone; assuming provided times are already UTC.")
 
     args.time_start = time_period[0]
     args.time_end = time_period[1]
