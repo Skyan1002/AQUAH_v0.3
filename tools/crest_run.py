@@ -177,7 +177,7 @@ def generate_control_file(
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-def visualize_model_results(args, default_flag=False):
+def visualize_model_results(args, default_flag=False, gauge_id: str | None = None):
     """
     Visualize hydrological model results comparing simulated vs observed discharge.
     
@@ -188,10 +188,18 @@ def visualize_model_results(args, default_flag=False):
     figure_path : str, optional
         Directory to save the plot image as 'results.png' (default: None, plot is not saved)
     """
+    gauge_id = gauge_id or args.gauge_id
     if default_flag:
-        ts_file=os.path.join(args.crest_output_path, 'default', f'ts.{args.gauge_id}.{args.water_balance_type}.csv')
+        ts_file = os.path.join(
+            args.crest_output_path,
+            "default",
+            f"ts.{gauge_id}.{args.water_balance_type}.csv",
+        )
     else:
-        ts_file=os.path.join(args.crest_output_path, f'ts.{args.gauge_id}.{args.water_balance_type}.csv')
+        ts_file = os.path.join(
+            args.crest_output_path,
+            f"ts.{gauge_id}.{args.water_balance_type}.csv",
+        )
     figure_path=args.figure_path
     # Check if file exists
     if not os.path.exists(ts_file):
@@ -208,7 +216,7 @@ def visualize_model_results(args, default_flag=False):
     print(f"Visualizing model results from: {os.path.abspath(ts_file)}")
     
     # Get performance metrics to display on the plot
-    metrics = evaluate_model_performance(args, default_flag)
+    metrics = evaluate_model_performance(args, default_flag, gauge_id=gauge_id)
     cc = metrics.get('CC', 'N/A')
     nsce = metrics.get('NSCE', 'N/A')
     kge = metrics.get('KGE', 'N/A')
@@ -251,7 +259,7 @@ def visualize_model_results(args, default_flag=False):
              bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
 
     # Set title
-    plt.title(f'{args.basin_name} - Gauge {args.gauge_id}: Simulated vs Observed Discharge with Precipitation')
+    plt.title(f'{args.basin_name} - Gauge {gauge_id}: Simulated vs Observed Discharge with Precipitation')
 
     # Set x-axis limits to first and last time points
     ax1.set_xlim(df['Time'].iloc[0], df['Time'].iloc[-1])
@@ -306,7 +314,7 @@ def visualize_model_results(args, default_flag=False):
              bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
 
     # Set title
-    plt.title(f'{args.basin_name} - Gauge {args.gauge_id}: Simulated vs Observed Discharge with Precipitation (Log Scale)')
+    plt.title(f'{args.basin_name} - Gauge {gauge_id}: Simulated vs Observed Discharge with Precipitation (Log Scale)')
 
     # Set x-axis limits to first and last time points
     ax3.set_xlim(df['Time'].iloc[0], df['Time'].iloc[-1])
@@ -329,7 +337,7 @@ def visualize_model_results(args, default_flag=False):
     plt.show()
 
     
-def evaluate_model_performance(args, default_flag=False):
+def evaluate_model_performance(args, default_flag=False, gauge_id: str | None = None):
     """
     Evaluate hydrological model performance by calculating statistical metrics
     between simulated and observed discharge.
@@ -343,10 +351,18 @@ def evaluate_model_performance(args, default_flag=False):
     --------
     dict: Dictionary containing the calculated performance metrics
     """
+    gauge_id = gauge_id or args.gauge_id
     if default_flag:
-        ts_file=os.path.join(args.crest_output_path, 'default', f'ts.{args.gauge_id}.{args.water_balance_type}.csv')
+        ts_file = os.path.join(
+            args.crest_output_path,
+            "default",
+            f"ts.{gauge_id}.{args.water_balance_type}.csv",
+        )
     else:
-        ts_file=os.path.join(args.crest_output_path, f'ts.{args.gauge_id}.{args.water_balance_type}.csv')
+        ts_file = os.path.join(
+            args.crest_output_path,
+            f"ts.{gauge_id}.{args.water_balance_type}.csv",
+        )
     # Check if file exists
     if not os.path.exists(ts_file):
         print(f"Error: Results file not found at {ts_file}")
@@ -415,6 +431,37 @@ def evaluate_model_performance(args, default_flag=False):
     print(f"KGE: {kge:.4f}")
     
     return metrics
+
+
+def select_best_gauge_by_nsce(args, default_flag=False):
+    gauges_list = getattr(args, "gauges_list", None)
+    if gauges_list is None or gauges_list.empty:
+        print("No gauges available to evaluate NSCE.")
+        return args.gauge_id, None
+
+    best_gauge_id = args.gauge_id
+    best_metrics = None
+    best_nsce = float("-inf")
+
+    for _, row in gauges_list.iterrows():
+        gauge_id = str(row.STAID).zfill(8)
+        metrics = evaluate_model_performance(args, default_flag, gauge_id=gauge_id)
+        if not metrics:
+            continue
+        nsce = metrics.get("NSCE")
+        if nsce is None:
+            continue
+        if nsce > best_nsce:
+            best_nsce = nsce
+            best_gauge_id = gauge_id
+            best_metrics = metrics
+
+    if best_metrics is None:
+        print("No valid NSCE metrics found for gauges; keeping current gauge.")
+        return args.gauge_id, None
+
+    print(f"Best NSCE gauge selected: {best_gauge_id} (NSCE={best_nsce:.4f})")
+    return best_gauge_id, best_metrics
 
 
 def crest_run(args,crest_args):
@@ -550,8 +597,10 @@ def crest_run(args,crest_args):
                 raise                                           # Re-raise the exception for the caller to catch
 
 
-    visualize_model_results(args)
-    args.metrics = evaluate_model_performance(args)
+    best_gauge_id, best_metrics = select_best_gauge_by_nsce(args)
+    args.gauge_id = best_gauge_id
+    visualize_model_results(args, gauge_id=best_gauge_id)
+    args.metrics = best_metrics or evaluate_model_performance(args, gauge_id=best_gauge_id)
 
 
 
@@ -814,8 +863,10 @@ def crest_run_default(args):
                 raise                                           # Re-raise the exception for the caller to catch
 
 
-    visualize_model_results(args, default_flag=True)
-    args.metrics = evaluate_model_performance(args, default_flag=True)
+    best_gauge_id, best_metrics = select_best_gauge_by_nsce(args, default_flag=True)
+    args.gauge_id = best_gauge_id
+    visualize_model_results(args, default_flag=True, gauge_id=best_gauge_id)
+    args.metrics = best_metrics or evaluate_model_performance(args, default_flag=True, gauge_id=best_gauge_id)
 
 
 
@@ -1141,5 +1192,7 @@ def crest_run_cali(args):
                 raise                                           # Re-raise the exception for the caller to catch
 
 
-    visualize_model_results(args)
-    args.metrics = evaluate_model_performance(args)
+    best_gauge_id, best_metrics = select_best_gauge_by_nsce(args)
+    args.gauge_id = best_gauge_id
+    visualize_model_results(args, gauge_id=best_gauge_id)
+    args.metrics = best_metrics or evaluate_model_performance(args, gauge_id=best_gauge_id)

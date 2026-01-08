@@ -16,8 +16,9 @@ parse_time_period:
     
     Your task is to identify the start and end dates mentioned
     in the text and convert them to datetime objects. If the user
-    mentions a flash flood, check news to confirm the event time/location,
-    keep the time range short (maximum 5 days), and ensure it spans from
+    mentions a flash flood, use web search/news to confirm the event
+    time/location if available, keep the time range short (maximum 5 days),
+    and ensure it spans from
     flood start through peak to end. Return ONLY the two datetime objects,
     nothing else.
   expected_output: >
@@ -35,7 +36,8 @@ get_basin_center:
     cities, or areas that should take precedence over the parsed basin name.
     
     Carefully analyze the user's original input text first to identify any specific locations, 
-    coordinates, or geographic references. The coordinates should reflect the user's intended 
+    coordinates, or geographic references. Use web search/news when available to confirm
+    event locations referenced in the input (e.g., flash floods). The coordinates should reflect the user's intended 
     location while ensuring the point is guaranteed to be inside the basin boundaries.
     
     If the user mentions specific locations, prioritize those areas over the parsed basin name. 
