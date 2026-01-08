@@ -242,11 +242,7 @@ def _get_crewai_llm(model_name: str, *, temperature: float = 0.7) -> LLM:
     if provider == "anthropic":
         return LLM(model=model_name, temperature=temperature)
 
-    # 4) DeepSeek – needs explicit provider flag
-    if provider == "deepseek":
-        return LLM(model=model_name, provider="deepseek", temperature=temperature)
-
-    # 5) Anything else -> error
+    # 4) Anything else -> error
     raise ValueError(f"Unsupported provider for model '{model_name}'")(model=model_name, temperature=temperature)
 
 def _ensure_gemini_route(name: str) -> str:
@@ -307,4 +303,3 @@ def final_report_writer(args, crest_args, agents_config, tasks_config, iteration
     output = pypandoc.convert_file('Hydro_Report.md', 'pdf', outputfile=output_pdf_path,extra_args=extra)
     print(f"PDF report saved to {os.path.abspath(output_pdf_path)}")
     print("=== LLM used for report writing ===\n", report_writer.llm.model)
-

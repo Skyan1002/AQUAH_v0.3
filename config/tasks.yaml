@@ -17,7 +17,7 @@ parse_time_period:
     Your task is to identify the start and end dates mentioned
     in the text and convert them to datetime objects. If the user
     mentions a flash flood, check news to confirm the event time/location,
-    keep the time range short (maximum 3 days), and ensure it spans from
+    keep the time range short (maximum 5 days), and ensure it spans from
     flood start through peak to end. Return ONLY the two datetime objects,
     nothing else.
   expected_output: >

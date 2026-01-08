@@ -61,7 +61,6 @@ api_keys = [
     ("OPENAI_API_KEY", "Please enter your OpenAI API Key (input will be hidden): "),
     ("ANTHROPIC_API_KEY", "Please enter your Anthropic API Key (input will be hidden): "),
     ("GOOGLE_API_KEY", "Please enter your Google API Key (input will be hidden): "),
-    ("DEEPSEEK_API_KEY", "Please enter your DeepSeek API Key (input will be hidden): "),
 ]
 
 for key_name, prompt in api_keys:

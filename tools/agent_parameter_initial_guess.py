@@ -16,7 +16,6 @@ import types
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-import requests
 from PIL import Image
 
 from tools.prompt_loader import load_prompts
@@ -37,8 +36,6 @@ def _detect_provider(model: str) -> str:
         return "anthropic"
     if model.startswith(("gemini", "models/", "gemini/")):
         return "gemini"
-    if model.startswith("deepseek"):
-        return "deepseek"
     return "openai"
 
 # ╰────────────────────────────────────────────────────────────────────────────╯
@@ -112,24 +109,6 @@ def _call_gemini(model: str, parts, *, temperature: float):
     ).text
 
 
-def _call_deepseek(model: str, messages: list, *, temperature: float):
-    url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1/chat/completions")
-    resp = requests.post(
-        url,
-        headers={
-            "Authorization": f"Bearer {os.getenv('DEEPSEEK_API_KEY')}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-        },
-        timeout=60,
-    ).json()
-    return resp["choices"][0]["message"]["content"]
-
-
 # ╰────────────────────────────────────────────────────────────────────────────╯
 
 # ╭──────────────────────────── Universal vision_chat() ───────────────────────╮
@@ -139,8 +118,8 @@ def vision_chat(
 ) -> str:
     provider = _detect_provider(model)
 
-    # OpenAI / DeepSeek: image_url objects
-    if provider in {"openai", "deepseek"}:
+    # OpenAI: image_url objects
+    if provider == "openai":
         msg = [{"role": "user", "content": []}]
         for p in images:
             mime, b64 = _file_to_b64(p, provider)
@@ -151,8 +130,7 @@ def vision_chat(
                 }
             )
         msg[0]["content"].append({"type": "text", "text": user_text})
-        fn = _call_openai if provider == "openai" else _call_deepseek
-        return fn(model, msg, temperature=temperature)
+        return _call_openai(model, msg, temperature=temperature)
 
     # Anthropic Claude‑3: block format
     if provider == "anthropic":
@@ -225,11 +203,7 @@ def _get_crewai_llm(model_name: str, *, temperature: float = 0) -> LLM:
     if provider == "anthropic":
         return LLM(model=model_name, temperature=temperature)
 
-    # 4) DeepSeek – needs explicit provider flag
-    if provider == "deepseek":
-        return LLM(model=model_name, provider="deepseek", temperature=temperature)
-
-    # 5) Anything else -> error
+    # 4) Anything else -> error
     raise ValueError(f"Unsupported provider for model '{model_name}'")(model=model_name, temperature=temperature)
 
 
