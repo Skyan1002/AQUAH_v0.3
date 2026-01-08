@@ -201,9 +201,27 @@ def aquah_run(cli_args):
     except Exception as e:
         print(f"Error: {e}")
         
-    if result.get("event_context"):
+    event_locations = []
+    event_context = result.get("event_context")
+    if event_context:
         print("Flash flood web search context:")
-        print(json.dumps(result["event_context"], indent=2, ensure_ascii=False))
+        print(json.dumps(event_context, indent=2, ensure_ascii=False))
+        for location in event_context.get("locations", []):
+            try:
+                lat = location.get("latitude")
+                lon = location.get("longitude")
+                if lat is None or lon is None:
+                    continue
+                event_locations.append(
+                    {
+                        "name": location.get("name"),
+                        "latitude": float(lat),
+                        "longitude": float(lon),
+                        "impact": location.get("impact", ""),
+                    }
+                )
+            except (TypeError, ValueError):
+                continue
 
     print('\n\033[1;31m\033[1m------------------------------------------------')
     print('Step 2: Find the Basin')
@@ -214,7 +232,7 @@ def aquah_run(cli_args):
         input_text,
         agents_config,
         tasks_config,
-        result.get("event_context"),
+        event_context,
     )
     # print(f"Basin '{basin_name}' center coordinates: {center_coords}")
 
@@ -248,7 +266,7 @@ def aquah_run(cli_args):
         except Exception as e:
             raise ValueError(f"Failed to parse time_period string: {e}")
 
-    event_timezone = fetch_event_timezone_name(input_text, result.get("event_context"))
+    event_timezone = fetch_event_timezone_name(input_text, event_context)
     if event_timezone:
         from datetime import timezone
         from zoneinfo import ZoneInfo
@@ -261,9 +279,14 @@ def aquah_run(cli_args):
     else:
         print("Warning: Could not resolve event timezone; assuming provided times are already UTC.")
 
+    from datetime import timedelta
+    peak_time = time_period[0] + (time_period[1] - time_period[0]) / 2
+    time_period = [peak_time - timedelta(days=1.5), peak_time + timedelta(days=1.5)]
+
     args.time_start = time_period[0]
     args.time_end = time_period[1]
     args.selected_point = center_coords
+    args.event_locations = event_locations
     # default args
     args.basin_shp_path = cli_args.basin_shp_path
     args.basin_level = cli_args.basin_level

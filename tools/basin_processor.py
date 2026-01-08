@@ -12,6 +12,7 @@ import os
 import rasterio
 import numpy as np
 import pandas as pd
+from typing import Optional
 
 import shutil
 from zipfile import ZipFile
@@ -622,6 +623,7 @@ def plot_watershed_with_gauges(
     start_date: datetime = datetime(2020, 1, 1),
     end_date: datetime = datetime(2020, 12, 31),
     time_step: str = "1d",
+    event_locations: Optional[list] = None,
 ):
     """Interactive + static map of watershed with USGS gauges.
 
@@ -696,6 +698,27 @@ def plot_watershed_with_gauges(
             popup=popup_html,
             icon=folium.Icon(color="blue", icon="info-sign"),
         ).add_to(fmap)
+
+    if event_locations:
+        for location in event_locations:
+            lat = location.get("latitude")
+            lon = location.get("longitude")
+            name = location.get("name", "Event location")
+            impact = location.get("impact", "")
+            if lat is None or lon is None:
+                continue
+            popup_html = f"<b>{name}</b><br>Lat: {lat:.4f}&nbsp;°<br>Lon: {lon:.4f}&nbsp;°"
+            if impact:
+                popup_html += f"<br>{impact}"
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=6,
+                color="red",
+                fill=True,
+                fill_color="red",
+                fill_opacity=0.9,
+                popup=popup_html,
+            ).add_to(fmap)
 
     fmap.save(html_path)
 
@@ -1550,7 +1573,16 @@ def basin_processor(args):
     # print("DEBUG inside basin_processor ->", type(args), vars(args))
     print("Downloading watershed shapefile...")
     Basin_Area, Basin_Name, bbox_coords = download_watershed_shp(args.selected_point[0], args.selected_point[1], args.basin_shp_path, args.basin_level)
-    gauges_list = plot_watershed_with_gauges(args.basin_shp_path, args.gauge_meta_path, args.figure_path, 10000, args.time_start, args.time_end, args.time_step)
+    gauges_list = plot_watershed_with_gauges(
+        args.basin_shp_path,
+        args.gauge_meta_path,
+        args.figure_path,
+        10000,
+        args.time_start,
+        args.time_end,
+        args.time_step,
+        event_locations=getattr(args, "event_locations", None),
+    )
     gauges_description = describe_gauges(gauges_list)
 
     if args.skip_basic_data:
@@ -1569,4 +1601,3 @@ def basin_processor(args):
     visualize_dem_with_gauges(args.basin_shp_path, gauges_list, args.basic_data_clip_path, args.figure_path)
     visualize_figures_basin(args.figure_path)
     return Basin_Area, Basin_Name, gauges_list, gauges_description
-
