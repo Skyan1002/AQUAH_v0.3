@@ -205,7 +205,13 @@ def aquah_run(cli_args):
     print('Step 2: Find the Basin')
     print('------------------------------------------------\033[0m\033[0m\n')
     basin_name = result["basin_name"]
-    center_coords = get_basin_center_coords(basin_name, input_text, agents_config, tasks_config)
+    center_coords = get_basin_center_coords(
+        basin_name,
+        input_text,
+        agents_config,
+        tasks_config,
+        result.get("event_context"),
+    )
     # print(f"Basin '{basin_name}' center coordinates: {center_coords}")
 
     # Construct the args
