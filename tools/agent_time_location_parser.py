@@ -66,6 +66,20 @@ def fetch_flash_flood_focus_coords(
     basin_name: str,
     event_context: Optional[dict] = None,
 ) -> Optional[Tuple[float, float]]:
+    focus_point = fetch_flash_flood_focus_point(input_text, basin_name, event_context)
+    if not focus_point:
+        return None
+    try:
+        return (float(focus_point["latitude"]), float(focus_point["longitude"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def fetch_flash_flood_focus_point(
+    input_text: str,
+    basin_name: str,
+    event_context: Optional[dict] = None,
+) -> Optional[dict]:
     if not _should_search_flash_flood(input_text):
         return None
     api_key = os.getenv("OPENAI_API_KEY")
@@ -113,10 +127,66 @@ Output JSON only:
         if not match:
             return None
         result = json.loads(match.group(0))
-    try:
-        return (float(result["latitude"]), float(result["longitude"]))
-    except (KeyError, TypeError, ValueError):
+    if not isinstance(result, dict):
         return None
+    return result
+
+
+def fetch_flash_flood_locations(
+    input_text: str,
+    event_context: Optional[dict] = None,
+) -> Optional[list]:
+    if not _should_search_flash_flood(input_text):
+        return None
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    model_name = os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
+    client = OpenAI(api_key=api_key)
+    context_note = ""
+    if event_context:
+        context_note = f"\nExisting context:\n{json.dumps(event_context, ensure_ascii=False)}\n"
+    prompt = f"""
+You have access to live web search.
+
+Task:
+Find at least two distinct impacted locations for the flash flood event described by the user.
+Return latitude/longitude and a brief impact summary for each location.
+
+User input:
+{input_text}
+{context_note}
+
+Output JSON only:
+{{
+  "locations": [
+    {{
+      "name": "location name",
+      "latitude": number,
+      "longitude": number,
+      "impact": "short impact summary",
+      "sources": ["url"]
+    }}
+  ]
+}}
+"""
+    response = client.responses.create(
+        model=model_name,
+        input=prompt,
+        tools=[{"type": "web_search"}],
+    )
+    text_output = response.output_text
+    try:
+        result = json.loads(text_output)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", text_output, re.DOTALL)
+        if not match:
+            return None
+        result = json.loads(match.group(0))
+    locations = result.get("locations")
+    if isinstance(locations, list) and locations:
+        return locations
+    return None
 
 
 def fetch_event_timezone_name(input_text: str, event_context: Optional[dict] = None) -> Optional[str]:

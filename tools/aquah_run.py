@@ -193,6 +193,8 @@ def aquah_run(cli_args):
         fixed_parse_simulation_info,
         get_basin_center_coords,
         fetch_event_timezone_name,
+        fetch_flash_flood_focus_point,
+        fetch_flash_flood_locations,
     )
     result = {}
     try:
@@ -206,6 +208,10 @@ def aquah_run(cli_args):
     if event_context:
         print("Flash flood web search context:")
         print(json.dumps(event_context, indent=2, ensure_ascii=False))
+        if len(event_context.get("locations", [])) < 2:
+            extra_locations = fetch_flash_flood_locations(input_text, event_context)
+            if extra_locations:
+                event_context["locations"] = extra_locations
         for location in event_context.get("locations", []):
             try:
                 lat = location.get("latitude")
@@ -227,13 +233,52 @@ def aquah_run(cli_args):
     print('Step 2: Find the Basin')
     print('------------------------------------------------\033[0m\033[0m\n')
     basin_name = result["basin_name"]
-    center_coords = get_basin_center_coords(
-        basin_name,
-        input_text,
-        agents_config,
-        tasks_config,
-        event_context,
-    )
+    focus_point = fetch_flash_flood_focus_point(input_text, basin_name, event_context)
+    center_coords = None
+    if focus_point:
+        try:
+            focus_lat = float(focus_point["latitude"])
+            focus_lon = float(focus_point["longitude"])
+            center_coords = (focus_lat, focus_lon)
+            event_locations.append(
+                {
+                    "name": focus_point.get("name"),
+                    "latitude": focus_lat,
+                    "longitude": focus_lon,
+                    "impact": focus_point.get("impact", ""),
+                }
+            )
+        except (KeyError, TypeError, ValueError):
+            center_coords = None
+
+    if len(event_locations) < 2:
+        supplemental_locations = fetch_flash_flood_locations(input_text, event_context)
+        if supplemental_locations:
+            for location in supplemental_locations:
+                try:
+                    lat = location.get("latitude")
+                    lon = location.get("longitude")
+                    if lat is None or lon is None:
+                        continue
+                    event_locations.append(
+                        {
+                            "name": location.get("name"),
+                            "latitude": float(lat),
+                            "longitude": float(lon),
+                            "impact": location.get("impact", ""),
+                        }
+                    )
+                except (TypeError, ValueError):
+                    continue
+
+    if center_coords is None:
+        center_coords = get_basin_center_coords(
+            basin_name,
+            input_text,
+            agents_config,
+            tasks_config,
+            event_context,
+        )
     # print(f"Basin '{basin_name}' center coordinates: {center_coords}")
 
     # Construct the args
@@ -286,7 +331,17 @@ def aquah_run(cli_args):
     args.time_start = time_period[0]
     args.time_end = time_period[1]
     args.selected_point = center_coords
-    args.event_locations = event_locations
+    unique_event_locations = []
+    seen_coords = set()
+    for location in event_locations:
+        coords = (location.get("latitude"), location.get("longitude"))
+        if coords in seen_coords:
+            continue
+        seen_coords.add(coords)
+        unique_event_locations.append(location)
+    if event_context and len(unique_event_locations) < 2:
+        print("Warning: fewer than two event locations found from web search.")
+    args.event_locations = unique_event_locations
     # default args
     args.basin_shp_path = cli_args.basin_shp_path
     args.basin_level = cli_args.basin_level
