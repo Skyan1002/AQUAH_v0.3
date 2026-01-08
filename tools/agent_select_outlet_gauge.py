@@ -17,7 +17,6 @@ import re
 from pathlib import Path
 from typing import List, Tuple
 
-import requests  # DeepSeek / HTTP
 from PIL import Image
 
 # ---------------------------------------------------------------------------
@@ -104,13 +103,6 @@ def _call_gemini(model: str, parts, api_key=None, temperature=0.1):
         parts, generation_config={"temperature": temperature}
     ).text
 
-def _call_deepseek(model, messages, *, api_key, temperature):
-    api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
-    url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1/chat/completions")
-    resp = requests.post(url, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json={"model": model, "messages": messages, "temperature": temperature}, timeout=60)
-    resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
-
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -144,18 +136,16 @@ def select_outlet_gauge_by_image(*, input_text: str, gauges_description: str, im
         provider = "anthropic"
     elif model_name.startswith(("gemini", "models/")):
         provider = "gemini"
-    elif model_name.startswith("deepseek"):
-        provider = "deepseek"
     else:
         provider = "openai"
 
-    if provider in {"openai", "deepseek"}:
+    if provider == "openai":
         messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": []}]
         for p in img_paths:
             mime, b64 = _file_to_b64(p, provider=provider)
             messages[1]["content"].append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}})
         messages[1]["content"].append({"type": "text", "text": USER_BLOCK})
-        raw = (_call_openai if provider == "openai" else _call_deepseek)(model_name, messages, api_key=None, temperature=temperature)
+        raw = _call_openai(model_name, messages, api_key=None, temperature=temperature)
 
     elif provider == "anthropic":
         blocks = []

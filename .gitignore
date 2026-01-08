@@ -11,3 +11,4 @@ control.txt
 figures/
 shpFile/
 warmup_state/
+.env

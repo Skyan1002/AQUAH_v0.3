@@ -278,19 +278,40 @@ def aquah_run(cli_args):
     
     
 
+    def run_basin_processing():
+        import importlib
+        basin_processor_module = importlib.import_module("tools.basin_processor")
+        importlib.reload(basin_processor_module)
+        basin_processor = basin_processor_module.basin_processor
+        Basin_Area, Basin_Name, gauges_list, gauges_description = basin_processor(args)
+        args.basin_area = Basin_Area
+        args.basin_name = Basin_Name
+        args.gauges_list = gauges_list
+        args.gauges_description = gauges_description
+        print(args.gauges_description)
+
     # Basin shp and basic data download
-    import importlib
-    basin_processor_module = importlib.import_module("tools.basin_processor")
-    importlib.reload(basin_processor_module)
-    basin_processor = basin_processor_module.basin_processor
-    Basin_Area, Basin_Name, gauges_list, gauges_description = basin_processor(args)
-    args.basin_area = Basin_Area
-    args.basin_name = Basin_Name
-    args.gauges_list = gauges_list
-    # print(gauges_list)
-    # return gauges_list
-    args.gauges_description = gauges_description
-    print(args.gauges_description)
+    run_basin_processing()
+
+    print('\n\033[1;31m\033[1m--------------------------------------------------------')
+    print('Step 2.5: Verify Basin Map Against User Request')
+    print('--------------------------------------------------------\033[0m\033[0m\n')
+    from tools.agent_basin_map_verifier import verify_basin_map_by_image
+    basin_map_path = os.path.join(args.figure_path, "basin_map_with_gauges.png")
+    verifier_model = args.vision_model_name or args.llm_model_name
+    decision, reason = verify_basin_map_by_image(
+        input_text=args.input_text,
+        image_path=basin_map_path,
+        model_name=verifier_model,
+        temperature=0.2,
+    )
+    decision = decision.strip().lower()
+    print(f"Basin verification decision: {decision}")
+    print(f"Basin verification reason: {reason}")
+    if decision == "expand" and args.basin_level != 4:
+        print(f"Expanding basin level from {args.basin_level} to 4 (HUC8) and rebuilding basin data.")
+        args.basin_level = 4
+        run_basin_processing()
     basin_name_current_time = args.basin_name + '_' + current_time
     basin_name_current_time = basin_name_current_time.replace(' ', '_')
     args.crest_output_path = os.path.join(args.crest_output_path, basin_name_current_time)
@@ -481,7 +502,5 @@ def aquah_run(cli_args):
         print(f"Saved simulation arguments to: {args_output_path}")
         args = copy.deepcopy(args_new)
         crest_args = copy.deepcopy(crest_args_new)
-
-
 
 
