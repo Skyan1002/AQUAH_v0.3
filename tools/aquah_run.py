@@ -190,12 +190,17 @@ def aquah_run(cli_args):
     print('Step 1: Determine Location and Time Period')
     print('------------------------------------------------\033[0m\033[0m\n')
     from tools.agent_time_location_parser import fixed_parse_simulation_info, get_basin_center_coords
+    result = {}
     try:
         result = fixed_parse_simulation_info(input_text, agents_config, tasks_config)
         # print(result)
     except Exception as e:
         print(f"Error: {e}")
         
+    if result.get("event_context"):
+        print("Flash flood web search context:")
+        print(json.dumps(result["event_context"], indent=2, ensure_ascii=False))
+
     print('\n\033[1;31m\033[1m------------------------------------------------')
     print('Step 2: Find the Basin')
     print('------------------------------------------------\033[0m\033[0m\n')
@@ -502,5 +507,3 @@ def aquah_run(cli_args):
         print(f"Saved simulation arguments to: {args_output_path}")
         args = copy.deepcopy(args_new)
         crest_args = copy.deepcopy(crest_args_new)
-
-
