@@ -192,15 +192,17 @@ def download_usgs_data(site_code, start_date=None, end_date=None, output_dir='US
     return None
             
 def gauge_processor(args):
-    
+    gauge_time_step = args.time_step
+    if args.time_step == "2u":
+        gauge_time_step = "15min"
+
     for idx, gauge in args.gauges_list.iterrows():
         gauge_id = f"{gauge.STAID:0>8}"
         latitude_gauge, longitude_gauge = get_gauge_coordinates(args.gauge_meta_path, gauge_id)
-        df_usgs = download_usgs_data(gauge_id, args.time_start, args.time_end, args.usgs_data_path, args.time_step)
+        df_usgs = download_usgs_data(gauge_id, args.time_start, args.time_end, args.usgs_data_path, gauge_time_step)
 
     latitude_gauge, longitude_gauge = get_gauge_coordinates(args.gauge_meta_path, args.gauge_id)
-    df_usgs = download_usgs_data(args.gauge_id, args.time_start, args.time_end, args.usgs_data_path, args.time_step)
+    df_usgs = download_usgs_data(args.gauge_id, args.time_start, args.time_end, args.usgs_data_path, gauge_time_step)
     return latitude_gauge, longitude_gauge
-
 
 
