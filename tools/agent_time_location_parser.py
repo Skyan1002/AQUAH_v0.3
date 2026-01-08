@@ -26,6 +26,7 @@ You have access to live web search.
 Task:
 Use the user's request to find the specific flash flood event(s), time window, and affected locations.
 Summarize relevant news or official sources that confirm the timing and locations.
+Return at least two distinct impacted locations when possible.
 
 User input:
 {input_text}

@@ -211,7 +211,7 @@ def aquah_run(cli_args):
         if len(event_context.get("locations", [])) < 2:
             extra_locations = fetch_flash_flood_locations(input_text, event_context)
             if extra_locations:
-                event_context["locations"] = extra_locations
+                event_context["locations"] = event_context.get("locations", []) + extra_locations
         for location in event_context.get("locations", []):
             try:
                 lat = location.get("latitude")
