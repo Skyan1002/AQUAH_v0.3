@@ -54,7 +54,13 @@ def _file_to_b64(path: str, *, provider: str) -> tuple[str, str]:
 def _call_openai(model, messages, *, api_key, temperature):
     from openai import OpenAI
     client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
-    return client.chat.completions.create(model=model, messages=messages, temperature=temperature).choices[0].message.content
+    if temperature is None:
+        return client.chat.completions.create(model=model, messages=messages).choices[0].message.content
+    return client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+    ).choices[0].message.content
 
 
 def _call_claude(model, messages, *, api_key, temperature, max_tokens=512):
@@ -112,6 +118,10 @@ def verify_basin_map_by_image(
     else:
         provider = "openai"
 
+    effective_temperature = temperature
+    if provider == "openai" and model_name.startswith("gpt-5"):
+        effective_temperature = None
+
     if provider in {"openai", "deepseek"}:
         messages = [{"role": "system", "content": system}, {"role": "user", "content": []}]
         mime, b64 = _file_to_b64(image_path, provider=provider)
@@ -121,7 +131,7 @@ def verify_basin_map_by_image(
             model_name,
             messages,
             api_key=None,
-            temperature=temperature,
+            temperature=effective_temperature,
         )
     elif provider == "anthropic":
         mime, b64 = _file_to_b64(image_path, provider=provider)
