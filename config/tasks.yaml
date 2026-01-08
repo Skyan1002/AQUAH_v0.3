@@ -16,9 +16,10 @@ parse_time_period:
     
     Your task is to identify the start and end dates mentioned
     in the text and convert them to datetime objects. If the user
-    mentions a flash flood, keep the time range short (maximum 2 days)
-    and ensure it spans from flood start through peak to end. Return ONLY
-    the two datetime objects, nothing else.
+    mentions a flash flood, check news to confirm the event time/location,
+    keep the time range short (maximum 3 days), and ensure it spans from
+    flood start through peak to end. Return ONLY the two datetime objects,
+    nothing else.
   expected_output: >
     ONLY two python datetime objects: [start_date, end_date]
     representing the simulation period. Do not include any other text,
