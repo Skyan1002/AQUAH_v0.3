@@ -3,7 +3,7 @@ gpt-5
 --vision_model_name
 gpt-5
 --input_text
-Please use Gauge 08165500, 30.0699 N, -99.3217 W, time 20250703 to 20250705.  Guadalupe river
+There was a flash flood in Kerr County earlier July, 2025. Could you help me analyze this event?
 --basin_shp_path
 shpFile/Basin_selected.shp
 --basin_level
@@ -27,7 +27,7 @@ MRMS_2min_data
 --crest_input_mrms_2min_path
 CREST_input/MRMS_2min/
 --num_processes
-4
+8
 --pet_data_path
 PET_data
 --crest_input_pet_path
@@ -46,4 +46,4 @@ report
 crest
 --warmup_flag
 --warmup_days
-30
+10
