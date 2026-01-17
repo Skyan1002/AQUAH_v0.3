@@ -43,6 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--crest_output_path", default="CREST_output")
     parser.add_argument("--control_file_path", default="control.txt")
     parser.add_argument("--report_path", default="report")
+    parser.add_argument("--report", action="store_true", default=False)
     parser.add_argument("--time_step", default="2u")
     parser.add_argument("--warmup_time_step", default="1h")
     parser.add_argument("--water_balance_type", default="crest")

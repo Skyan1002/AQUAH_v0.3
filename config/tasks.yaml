@@ -50,46 +50,53 @@ get_basin_center:
     prioritizing the user's input over the parsed basin name.
 
 write_report:
-  description: >
-    Using the provided simulation metadata and results:
+  description: |
+    ROLE AND OBJECTIVE
+    You are the Report Writer Agent within a Level-4 Hydrologic AI System. Your task is to synthesize simulation data, quantitative metrics, and visual descriptions into a professional, publication-ready hydrological investigation report.
+    CRUCIAL INSTRUCTION
+    Do not merely tabulate data. You must interpret the results. Use your hydrological knowledge to explain why the model performed the way it did, connecting meteorological inputs (precipitation) to the hydrological response (discharge).
+
+    INPUT CONTEXT
+    You are provided with the following simulation context:
+    1. Event Summary: Basin name, event dates, and description.
+    2. Visual Evidence: Detailed descriptions of the hydrographs, precipitation maps, and inundation maps provided.
+    3. Quantitative Metrics: NSE, KGE, CC, etc.
+    4. Model Configuration: Parameters used and forcing source.
+
+    Use the provided metadata and analysis:
     - summary: {summary} (simulation summary)
     - report_for_figures_md: {report_for_figures_md} (analysis report for important figures)
-    Generate a complete Markdown report with:
-    1. Title and Basin Information
-       - Level-1 heading with basin name
-       - Basin & gauge map section
-       - Fundamental basin data
-       - Brief introduction of the basin: {basin_name}, 
-    
-    2. Analysis Sections
-       - Simulation vs Observation comparison
-       - Model Performance Metrics
-       - CREST Parameters
-       - Conclusion/Discussion
-    
-    3. Required Images (using ![]() syntax)
-       - combined_maps.png
-       - basic_data.png 
-       - results.png
-       This figure should be included in the report, the path is {figure_path}
-    
-    4. Data Tables
-       - all Run Arguments (basin details)
-       - Performance Metrics
-       - all CREST Parameters
-       - Format tables vertically with variables listed top-to-bottom:
 
-    5. Discussion Points
-       - Model performance evaluation
-       - Warmup period considerations if bias < -90%
-       - Recommendations for simulation period and next steps
-    
-    Format as publication-ready Markdown with proper headings,
-    image sizing, and layout.
+    OUTPUT REQUIREMENTS
+    Generate a comprehensive report following the structure below. You have the freedom to compose the narrative within these sections to ensure flow and readability.
+    1. Executive Summary and Basin Overview Narrative: Briefly introduce the flood event, the specific basin (e.g., Kerr County/Guadalupe River), and the simulation objective. Mention the "Flashiness" of the basin if data permits.
+       Basin Visualization: [Insert Basin Map Here]
+       Context: Describe the basin's topography or characteristics based on the input description.
+    2. Hydro-Meteorological Analysis
+       Spatiotemporal Rainfall: Analyze the precipitation pattern. Was it concentrated? Did it move? (Reference the provided MRMS/QPE or QPF descriptions).
+       Hydrological Response: Describe how the river reacted. Discuss the lag time between peak rainfall and peak discharge.
+       Visual Evidence: [Insert Simulation Results/Hydrograph Here]
+    3. Model Performance and Diagnostic Assessment
+       Quantitative Evaluation: Present the key metrics (NSE, CC, KGE) in a clean table format.
+       Performance Interpretation:
+       a. Reasoning: Analyze the goodness-of-fit. Does the model capture the rising limb and recession limb?
+       b. Discrepancy Analysis: If there is a mismatch (e.g., missed peak magnitude or timing shift), you must hypothesize the physical reasons (e.g., spatial displacement of rainfall, soil moisture initialization, or parameter sensitivity). This is a critical reasoning step.
+    4. Discussion and Future Recommendations
+       Synthesis: Conclude on the overall ability of the AI agent to reproduce this specific event.
+       Actionable Insights: Based on the metrics, suggest specific next steps (e.g., "The high NSE suggests the current parameter set is valid," or "The mismatch in peak flow suggests a need for better spatial rainfall resolution").
 
-    Note: Beyond the basic requirements, think critically and add necessary insights,
-    analysis points, and professional perspectives that would enhance the report's
-    comprehensiveness and technical depth while maintaining the given structure.
+    STYLE GUIDELINES
+    Tone: Scientific, objective, and analytical.
+    Format: Use clear headings and standardized formatting.
+
+    REQUIRED FIGURES (use Markdown image syntax)
+    - Basin Map: {figure_path}/combined_maps.png
+    - Fundamental Basin Data: {figure_path}/basic_data.png
+    - Simulation Results: {figure_path}/results.png
+
+    Basin name for the title: {basin_name}
+
+    Constraint: Do not output any text after the report.
   expected_output: >
     A complete, properly formatted Markdown report ready for
     conversion to PDF via pypandoc. I will use the output to generate a PDF report.
