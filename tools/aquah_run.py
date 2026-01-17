@@ -254,6 +254,7 @@ def aquah_run(cli_args):
     args.crest_output_path = cli_args.crest_output_path
     args.control_file_path = cli_args.control_file_path
     args.report_path = cli_args.report_path
+    args.report = cli_args.report
     args.time_step = cli_args.time_step
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
     args.figure_path = os.path.join(args.figure_path, current_time)
@@ -410,8 +411,54 @@ def aquah_run(cli_args):
     import tools.crest_run
     importlib.reload(tools.crest_run)
     tools.crest_run.crest_run_cali(args)
-    
 
+    def load_calibrated_params_for_report(gauge_id: str, params_path: str):
+        import pandas as pd
+        from types import SimpleNamespace
+
+        param_df = pd.read_csv(params_path)
+        if "station" in param_df.columns:
+            param_df.rename(columns={"station": "STAID"}, inplace=True)
+        param_df["STAID"] = param_df["STAID"].astype(str).str.zfill(8)
+        target_id = str(gauge_id).zfill(8)
+        matched = param_df.loc[param_df["STAID"] == target_id]
+        if matched.empty:
+            print(f"Warning: No calibrated parameter row for gauge {target_id}; using first entry.")
+            matched = param_df.head(1)
+        if matched.empty:
+            raise ValueError(f"No calibrated parameters found in {params_path}.")
+        record = matched.iloc[0]
+        return SimpleNamespace(
+            wm=float(record["wm"]),
+            b=float(record["b"]),
+            im=float(record["im"]),
+            ke=float(record["ke"]),
+            fc=float(record["fc"]),
+            iwu=float(record["iwu"]),
+            under=float(record["under"]),
+            leaki=float(record["leaki"]),
+            th=float(record["th"]),
+            isu=float(record["isu"]),
+            alpha=float(record["alpha"]),
+            beta=float(record["beta"]),
+            alpha0=float(record["alpha0"]),
+        )
+
+    if cli_args.report:
+        print('\n\033[1;31m\033[1m--------------------------------------------------------')
+        print('Step 6: Generate a Report')
+        print('--------------------------------------------------------\033[0m\033[0m\n')
+
+        crest_args = load_calibrated_params_for_report(
+            args.gauge_id,
+            "EF5_tools/simu_param_summary_aug.csv",
+        )
+        import importlib
+        import tools.agent_report_writer
+        importlib.reload(tools.agent_report_writer)
+        tools.agent_report_writer.final_report_writer(args, crest_args, agents_config, tasks_config, iteration_num=0)
+    else:
+        print('Skipping report generation. Use --report to enable PDF output.')
     return
     print('\n\033[1;31m\033[1m--------------------------------------------------------')
     print('Step 6: Generate a Report')
@@ -502,5 +549,3 @@ def aquah_run(cli_args):
         print(f"Saved simulation arguments to: {args_output_path}")
         args = copy.deepcopy(args_new)
         crest_args = copy.deepcopy(crest_args_new)
-
-
